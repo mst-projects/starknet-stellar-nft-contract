@@ -4,6 +4,7 @@ use protostar_print::PrintTrait;
 
 const NAME: felt252 = 'Stellar';
 const SYMBOL: felt252 = 'SNFT';
+const TOKEN_URI: felt252 = 'Wonderful day!';
 const THIRD_PARTY_ADDRESS: felt252 = 123;
 const THIRD_PARTY_ADDRESS_2: felt252 = 456;
 const THIRD_PARTY_ADDRESS_3: felt252 = 789;
@@ -49,7 +50,7 @@ fn test_mint() {
 
     let mut calldata = ArrayTrait::new();
     calldata.append(THIRD_PARTY_ADDRESS);
-    calldata.append(1);
+    calldata.append(1); //u256 should be described by 2 integers
     calldata.append(0);
     invoke(contract_address, 'mint', @calldata);
 
@@ -67,11 +68,19 @@ fn test_mint() {
     assert(*owner_of.at(0_u32) == THIRD_PARTY_ADDRESS, 'Invalid owner');
     owner_of.print();
 
+    // set token_uri
+    let mut calldata = ArrayTrait::new();
+    calldata.append(1); //u256 should be described by 2 integers
+    calldata.append(0);
+    calldata.append(TOKEN_URI);
+    invoke(contract_address, 'set_token_uri', @calldata).unwrap();
+
     // call token_uri after mint
     let mut calldata = ArrayTrait::new();
     calldata.append(1);
     calldata.append(0);
     let token_uri = call(contract_address, 'token_uri', @calldata).unwrap();
+    'token_uri'.print();
     token_uri.print();
 
     // set_approve_for_all
@@ -90,7 +99,7 @@ fn test_mint() {
     calldata.append(1);
     calldata.append(0);
     invoke(contract_address, 'approve', @calldata).unwrap();
-    
+
     // call get_approved
     let mut calldata = ArrayTrait::new();
     calldata.append(1);

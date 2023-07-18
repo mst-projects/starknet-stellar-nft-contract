@@ -1,6 +1,4 @@
-
 // compile => cargo run --bin starknet-compile -- erc721.cairo
-// Current repo can not be compiled because lack of independence
 #[contract]
 mod erc721 {
     // same like msg.sender in Solidity, return type is ContractAddress
@@ -19,6 +17,7 @@ mod erc721 {
         owners: LegacyMap::<u256, ContractAddress>,
         balances: LegacyMap::<ContractAddress, u256>,
         token_approvals: LegacyMap::<u256, ContractAddress>,
+        token_uris: LegacyMap::<u256, felt252>,
         // (owner, operator)
         operator_approvals: LegacyMap::<(ContractAddress, ContractAddress), bool>,
     }
@@ -43,7 +42,6 @@ mod erc721 {
         _set_approval_for_all(get_caller_address(), operator, approved);
     }
 
-    
     fn _set_approval_for_all(owner: ContractAddress, operator: ContractAddress, approved: bool) {
         assert(owner != operator, 'ERC721: approve to caller');
         operator_approvals::write((owner, operator), approved);
@@ -57,11 +55,14 @@ mod erc721 {
         // The max length of error msg is 31 or there's an error
         assert(to != owner, 'Approval to current owner');
         // || is not supported currently so we use | here
-        assert(get_caller_address() == owner | is_approved_for_all(owner, get_caller_address()), 'Not token owner');
+        assert(
+            get_caller_address() == owner | is_approved_for_all(owner, get_caller_address()),
+            'Not token owner'
+        );
         _approve(to, token_id);
     }
 
-    
+
     fn _approve(to: ContractAddress, token_id: u256) {
         token_approvals::write(token_id, to);
         Approval(owner_of(token_id), to, token_id);
@@ -69,7 +70,9 @@ mod erc721 {
 
     #[external]
     fn transfer_from(from: ContractAddress, to: ContractAddress, token_id: u256) {
-        assert(_is_approved_or_owner(get_caller_address(), token_id), 'Caller is not owner or appvored');
+        assert(
+            _is_approved_or_owner(get_caller_address(), token_id), 'Caller is not owner or appvored'
+        );
         _transfer(from, to, token_id);
     }
 
@@ -78,17 +81,31 @@ mod erc721 {
         _mint(to, token_id);
     }
 
-    
+    #[external]
+    fn set_token_uri(token_id: u256, token_uri: felt252) {
+        _require_minted(token_id);
+        // assert(token_uri.len() <= 256, 'ERC721Metadata: URI length > 256');
+        // assert(
+        //     _owner_of(token_id) == get_caller_address() | is_approved_for_all(
+        //         _owner_of(token_id),
+        //         get_caller_address(),
+        //     ),
+        //     'ERC721Metadata: URI set of token that is not own',
+        // );
+        token_uris::write(token_id, token_uri);
+    }
+
+
     fn _exists(token_id: u256) -> bool {
         !_owner_of(token_id).is_zero()
     }
 
-    
+
     fn _owner_of(token_id: u256) -> ContractAddress {
         owners::read(token_id)
     }
 
-    
+
     fn _mint(to: ContractAddress, token_id: u256) {
         assert(!to.is_zero(), 'ERC721: mint to 0');
         // _beforeTokenTransfer(contract_address_const::<0>(), to, token_id, 1.into());
@@ -98,11 +115,10 @@ mod erc721 {
         owners::write(token_id, to);
         // contract_address_const::<0>() => means 0 address
         Transfer(contract_address_const::<0>(), to, token_id);
-
-        // _afterTokenTransfer(contract_address_const::<0>(), to, token_id, 1.into());
+    // _afterTokenTransfer(contract_address_const::<0>(), to, token_id, 1.into());
     }
 
-    
+
     fn _burn(token_id: u256) {
         let owner = owner_of(token_id);
         _beforeTokenTransfer(owner, contract_address_const::<0>(), token_id, 1.into());
@@ -116,21 +132,19 @@ mod erc721 {
         _afterTokenTransfer(owner, contract_address_const::<0>(), token_id, 1.into());
     }
 
-    
+
     fn _require_minted(token_id: u256) {
         assert(_exists(token_id), 'ERC721: invalid token ID');
     }
 
-    
+
     fn _is_approved_or_owner(spender: ContractAddress, token_id: u256) -> bool {
         let owner = owners::read(token_id);
         // || is not supported currently so we use | here
-        spender == owner
-            | is_approved_for_all(owner, spender) 
-            | get_approved(token_id) == spender
+        spender == owner | is_approved_for_all(owner, spender) | get_approved(token_id) == spender
     }
 
-    
+
     fn _transfer(from: ContractAddress, to: ContractAddress, token_id: u256) {
         assert(from == owner_of(token_id), 'Transfer from incorrect owner');
         assert(!to.is_zero(), 'ERC721: transfer to 0');
@@ -163,9 +177,9 @@ mod erc721 {
 
     #[view]
     fn token_uri(token_id: u256) -> felt252 {
-        _require_minted(token_id);
-        let base_uri = _base_uri();
-        base_uri + token_id.try_into().unwrap()
+        let token_uri = token_uris::read(token_id);
+        assert(!token_uri.is_zero(), 'nonexistent token');
+        token_uri
     }
 
     #[view]
@@ -197,16 +211,10 @@ mod erc721 {
     }
 
     fn _beforeTokenTransfer(
-        from: ContractAddress, 
-        to: ContractAddress, 
-        first_token_id: u256, 
-        batch_size: u256
+        from: ContractAddress, to: ContractAddress, first_token_id: u256, batch_size: u256
     ) {}
 
     fn _afterTokenTransfer(
-        from: ContractAddress, 
-        to: ContractAddress, 
-        first_token_id: u256, 
-        batch_size: u256
+        from: ContractAddress, to: ContractAddress, first_token_id: u256, batch_size: u256
     ) {}
 }
